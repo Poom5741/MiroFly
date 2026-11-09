@@ -54,6 +54,60 @@ their own adaptation/memory state.
 
 ## Ablation results (the honesty engine)
 
+The experiments, in chronological order. Every one is pre-registered
+(gains tuned on intact only, then controls), seeded, and published as-run —
+including the results we did not want.
+
+### v0.1 — grouped rate cores (world-level, superseded — kept for the record)
+
+Same scandal storyline, 120 citizens, 3 conditions:
+| metric | intact real wiring | shuffled wiring | no-core (noise) |
+|---|---|---|---|
+| peak outrage | 0.991 | 0.991 | 0.043 |
+| outrage half-life (ticks) | 9 | 7 | 2 |
+| total posts | 1200 | 1230 | 810 |
+| mean alarm | 0.399 | 0.397 | 0.098 |
+
+**Two honest findings (world-level, v0.1 cores):**
+1. The affect machinery *does* matter: removing the core collapses posting
+   (−33%) and alarm (−75%). Citizens with nervous systems panic; noise doesn't.
+2. **Intact ≈ shuffled at v0.1.** The real topology does not yet beat a
+   rewired control through 16-group aggregation. That is the headline until
+   per-neuron spiking microcircuits change it. If it never changes, we
+   publish that too (see ENSOphilia's precedent of honest negatives).
+
+Run it yourself: `python ablation.py` → `results/ablation.png`
+
+### v0.2 — per-neuron spiking cores
+
+Per-neuron LIF dynamics on 2,400 real neurons / 187k signed synapses.
+Pre-registered protocol: gain swept on intact only (frozen at 64), then 5
+seeds per condition, identical drive timeline, configuration-model rewiring
+(degrees + weights preserved, pairing destroyed).
+
+| metric (mean±std) | intact real wiring | rewired control | no-core (noise) |
+|---|---|---|---|
+| threat response | 0.127±0.001 | 0.148±0.001 | 0.098±0.002 |
+| twist approach response | 0.048±0.000 | 0.192±0.000 | 0.045±0.002 |
+| alarm AUC | 1.833±0.008 | 1.816±0.008 | 1.626±0.029 |
+| echo after storm | 0.067±0.000 | 0.173±0.000 | 0.074±0.001 |
+| max firing fraction | 0.216±0.007 | 0.263±0.002 | 0.200±0.005 |
+
+**Finding: topology matters — but not the way we guessed.** The real circuit
+responds *differently* from rewired wiring with tiny variance, yet the rewired
+graphs are LOUDER: they echo more, spill more across channels, habituate more.
+The measured connectome is **selective, not powerful**: a feeding circuit
+doesn't amplify arbitrary injected signals, while random pairing manufactures
+parasitic feedback loops that boost everything. This is the v0.2 headline:
+
+> Real wiring ≠ generic compute. It constrains propagation to its own paths.
+> A random connectome is a better reservoir — and a worse brain.
+
+Consistent with the community's honest negatives (FlyDoom's motion selectivity,
+ENSOphilia's forecast null): measured wiring buys *specificity*, not horsepower.
+
+Run: `python ablation_v02.py` → `results/ablation_v02.png`
+
 ### v0.3 — the discrimination test: real bitter GRNs
 
 The threat channel is no longer a stand-in: **39 real bitter GRNs** (LB1a/LB1b,
@@ -116,16 +170,7 @@ regime, short timeline, 2-hop neighborhoods. Magnitudes may move; the sign of
 D_total is the claim. Run: `python discrimination_v03.py` →
 `results/discrimination_v03.png`
 
-### v0.2 — per-neuron spiking cores
-
-First per-neuron protocol (absolute readouts, gain frozen at 64):
-intact vs rewired differed far beyond noise, but rewired graphs were LOUDER
-(more echo, more spillover): **"real wiring is selective, not powerful."**
-v0.3's discrimination result is the constructive counterpart — the real
-circuit is selective *for its channels*.
-
 ### v0.4 — dopamine-gated learning (MB-inspired)
-
 Citizens now LEARN: a PreferenceLayer implements the mushroom-body rule
 (delta-rule valence updates, gated by the core's dopamine novelty signal —
 expected events do not rewrite valence). Two real citizen types in the SAME
@@ -146,36 +191,6 @@ readouts (the real circuit reverberates after storms; ΔF/F-style scoring is
 required or every post-storm event reads as bad).
 
 Run: `python demo_learning.py` → `results/learning_v04.png`
-
-### v0.2 — per-neuron spiking cores
-
-Per-neuron LIF dynamics on 2,400 real neurons / 187k signed synapses.
-Pre-registered protocol: gain swept on intact only (frozen at 64), then 5
-seeds per condition, identical drive timeline, configuration-model rewiring
-(degrees + weights preserved, pairing destroyed).
-
-| metric (mean±std) | intact real wiring | rewired control | no-core (noise) |
-|---|---|---|---|
-| threat response | 0.127±0.001 | 0.148±0.001 | 0.098±0.002 |
-| twist approach response | 0.048±0.000 | 0.192±0.000 | 0.045±0.002 |
-| alarm AUC | 1.833±0.008 | 1.816±0.008 | 1.626±0.029 |
-| echo after storm | 0.067±0.000 | 0.173±0.000 | 0.074±0.001 |
-| max firing fraction | 0.216±0.007 | 0.263±0.002 | 0.200±0.005 |
-
-**Finding: topology matters — but not the way we guessed.** The real circuit
-responds *differently* from rewired wiring with tiny variance, yet the rewired
-graphs are LOUDER: they echo more, spill more across channels, habituate more.
-The measured connectome is **selective, not powerful**: a feeding circuit
-doesn't amplify arbitrary injected signals, while random pairing manufactures
-parasitic feedback loops that boost everything. This is the v0.2 headline:
-
-> Real wiring ≠ generic compute. It constrains propagation to its own paths.
-> A random connectome is a better reservoir — and a worse brain.
-
-Consistent with the community's honest negatives (FlyDoom's motion selectivity,
-ENSOphilia's forecast null): measured wiring buys *specificity*, not horsepower.
-
-Run: `python ablation_v02.py` → `results/ablation_v02.png`
 
 ### v0.4b — world-level ablation: the society signature (current)
 
@@ -198,26 +213,6 @@ unfocused peaks, channel confusion at the society level. The v0.3
 single-brain discrimination result scales up to collective dynamics.
 
 Run: `python world_ablation.py` → `results/world_ablation.png`
-
-### v0.1 — grouped rate cores (world-level, superseded — kept for the record)
-
-Same scandal storyline, 120 citizens, 3 conditions:
-| metric | intact real wiring | shuffled wiring | no-core (noise) |
-|---|---|---|---|
-| peak outrage | 0.991 | 0.991 | 0.043 |
-| outrage half-life (ticks) | 9 | 7 | 2 |
-| total posts | 1200 | 1230 | 810 |
-| mean alarm | 0.399 | 0.397 | 0.098 |
-
-**Two honest findings (world-level, v0.1 cores):**
-1. The affect machinery *does* matter: removing the core collapses posting
-   (−33%) and alarm (−75%). Citizens with nervous systems panic; noise doesn't.
-2. **Intact ≈ shuffled at v0.1.** The real topology does not yet beat a
-   rewired control through 16-group aggregation. That is the headline until
-   per-neuron spiking microcircuits change it. If it never changes, we
-   publish that too (see ENSOphilia's precedent of honest negatives).
-
-Run it yourself: `python ablation.py` → `results/ablation.png`
 
 ## Quick start
 
