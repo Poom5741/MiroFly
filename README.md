@@ -147,7 +147,7 @@ required or every post-storm event reads as bad).
 
 Run: `python demo_learning.py` → `results/learning_v04.png`
 
-### v0.1 — grouped rate cores (superseded, kept for the record)
+### v0.2 — per-neuron spiking cores
 
 Per-neuron LIF dynamics on 2,400 real neurons / 187k signed synapses.
 Pre-registered protocol: gain swept on intact only (frozen at 64), then 5
@@ -177,7 +177,29 @@ ENSOphilia's forecast null): measured wiring buys *specificity*, not horsepower.
 
 Run: `python ablation_v02.py` → `results/ablation_v02.png`
 
-### v0.1 — grouped rate cores (superseded, kept for the record)
+### v0.4b — world-level ablation: the society signature (current)
+
+The v0.3 spiking cores inside the FULL opinion world (follower graph, posting
+cascade, learning off to isolate topology), 3 seeds/condition:
+
+| metric (mean±std) | intact real wiring | rewired control | no-core (noise) |
+|---|---|---|---|
+| total posts | 1139±8 | 1111±12 | 906±13 |
+| peak outrage | **0.148±0.000** | 0.118±0.000 | 0.102±0.000 |
+| outrage peak tick | **8.7±0.5** (during scandal) | 15.0±0.0 (late echo) | 5.3±0.5 |
+| scandal responders | **78±6 / 120 citizens** | **0.7±0.9** | 31±2 |
+| containment (avoid − spill) | **+0.065±0.000** | **−0.008±0.000** | +0.011±0.000 |
+
+**Finding: the real brain gives the society a signature.** With measured
+wiring, ~78/120 citizens coherently respond to the scandal, outrage peaks
+*while the scandal happens*, and outrage stays contained in the threat
+channel. With rewired wiring: essentially no coordinated responders, late
+unfocused peaks, channel confusion at the society level. The v0.3
+single-brain discrimination result scales up to collective dynamics.
+
+Run: `python world_ablation.py` → `results/world_ablation.png`
+
+### v0.1 — grouped rate cores (world-level, superseded — kept for the record)
 
 Same scandal storyline, 120 citizens, 3 conditions:
 | metric | intact real wiring | shuffled wiring | no-core (noise) |
