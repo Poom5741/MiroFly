@@ -48,6 +48,85 @@ def load_connectivity(fly_brain_dir: str | Path):
     return pre, post, signed
 
 
+def build_neuron_core(fly_brain_dir: str | Path = Path.home() / "fly-brain",
+                      max_neurons: int = 2400, seed: int = 7,
+                      readout_k: int = 30):
+    """
+    v0.2: per-neuron circuit (no group aggregation).
+
+    Returns edges sorted by postsynaptic target, ready for batched sparse
+    matvec via np.add.reduceat, plus real seed/approach/threat neuron sets:
+      - seeds:    the real sugar GRNs (drive channel, approach energy)
+      - approach: top neurons by real positive signed input from seeds
+      - threat:   top neurons by real negative (inhibitory) input from seeds
+                  — the real taste-inhibited population (v0.1 stand-in note
+                  for bitter GRNs still applies)
+    """
+    ids = load_neuron_ids(fly_brain_dir)
+    id_to_idx = {nid: i for i, nid in enumerate(ids)}
+    seed_idx = np.array([id_to_idx[n] for n in SUGAR_GRN_IDS], dtype=int)
+
+    pre, post, signed = load_connectivity(fly_brain_dir)
+
+    # 2-hop downstream neighborhood of the real seeds, capped by weight rank
+    agg = pd.Series(np.abs(signed[np.isin(pre, seed_idx)])).groupby(
+        post[np.isin(pre, seed_idx)]).sum().sort_values(ascending=False)
+    hop1 = agg.index[:2000]
+    agg2 = pd.Series(np.abs(signed[np.isin(pre, hop1)])).groupby(
+        post[np.isin(pre, hop1)]).sum().sort_values(ascending=False)
+    hop2 = agg2.index[: max_neurons - len(seed_idx) - len(hop1)]
+    members = np.concatenate([seed_idx, hop1.to_numpy(), hop2.to_numpy()])
+    member_set = np.zeros(len(ids), dtype=bool)
+    member_set[members] = True
+
+    sm = member_set[pre] & member_set[post]
+    pre_s, post_s, w_s = pre[sm], post[sm], signed[sm]
+
+    local = -np.ones(len(ids), dtype=int)
+    local[members] = np.arange(len(members))
+    pre_l, post_l = local[pre_s], local[post_s]
+
+    # real readout sets by coupling from the seeds
+    n = len(members)
+    from_seed = np.zeros(n)
+    seed_local = local[seed_idx]
+    mseed = np.isin(pre_l, seed_local)
+    np.add.at(from_seed, post_l[mseed], w_s[mseed])
+    from_seed[seed_local] = 0.0  # exclude seeds from their own readouts
+    order = np.argsort(from_seed)
+    approach_idx = order[-readout_k:].tolist()          # strongest excited
+    threat_idx = order[:readout_k].tolist()             # strongest inhibited
+
+    # sort edges by postsynaptic target for reduceat-style sparse matvec
+    e = np.argsort(post_l, kind="stable")
+    pre_sorted = pre_l[e]
+    post_sorted = post_l[e]
+    w_sorted = w_s[e]
+    nz_targets, starts, counts = np.unique(post_sorted, return_index=True,
+                                           return_counts=True)
+
+    # per-target input normalization scale (sum of |w| into each target)
+    in_scale = np.zeros(n)
+    np.add.at(in_scale, post_l, np.abs(w_s))
+
+    meta = {
+        "n_neurons": int(n),
+        "n_synapses_in_core": int(sm.sum()),
+        "n_seed_neurons": int(len(seed_idx)),
+        "n_approach": len(approach_idx),
+        "n_threat": len(threat_idx),
+        "seed_source": "EXPERIMENTS['sugar']['neu_exc'] of eonsystemspbc/fly-brain",
+        "data": "FlyWire v783 signed connectivity (Eckstein et al. 2024 signs)",
+    }
+    return {
+        "pre": pre_sorted, "post": post_sorted, "w": w_sorted,
+        "nz_targets": nz_targets, "starts": starts,
+        "in_scale": in_scale,
+        "seed_local": seed_local, "approach_idx": approach_idx,
+        "threat_idx": threat_idx, "meta": meta,
+    }
+
+
 def load_neuron_ids(fly_brain_dir: str | Path) -> np.ndarray:
     """Row i of the completeness CSV is neuron index i in the parquet."""
     c = pd.read_csv(Path(fly_brain_dir) / "data" / "2025_Completeness_783.csv",

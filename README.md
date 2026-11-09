@@ -47,15 +47,46 @@ their own adaptation/memory state.
 |---|---|
 | Neuron neighborhood | ✅ REAL — 2-hop downstream of the actual sugar GRNs (IDs from [eonsystemspbc/fly-brain](https://github.com/eonsystemspbc/fly-brain)) |
 | Synapse weights + signs | ✅ REAL — FlyWire v783, Eckstein et al. 2024 neurotransmitter-inferred signs |
-| Group partition | ⚠️ v0.1 approximation — k-means into 16 groups (upgrade: per-neuron spiking) |
-| Threat channel | ⚠️ v0.1 stand-in — the real taste-*inhibited* populations (roadmap: real bitter GRN IDs) |
+| Dynamics (v0.2) | ✅ per-neuron LIF on real synapses, batched per citizen |
+| Threat channel | ⚠️ v0.1 stand-in — the real taste-*inhibited* population (roadmap: real bitter GRN IDs) |
 | Spectral normalization | ⚙️ standard rate-model practice (radius 0.9), sign structure preserved |
 | Comprehension of events | ❌ none — encoder/LLM maps text to drives; the brain only computes dynamics |
 
 ## Ablation results (the honesty engine)
 
-Same scandal storyline, 120 citizens, 3 conditions:
+### v0.2 — per-neuron spiking cores (current)
 
+Per-neuron LIF dynamics on 2,400 real neurons / 187k signed synapses.
+Pre-registered protocol: gain swept on intact only (frozen at 64), then 5
+seeds per condition, identical drive timeline, configuration-model rewiring
+(degrees + weights preserved, pairing destroyed).
+
+| metric (mean±std) | intact real wiring | rewired control | no-core (noise) |
+|---|---|---|---|
+| threat response | 0.127±0.001 | 0.148±0.001 | 0.098±0.002 |
+| twist approach response | 0.048±0.000 | 0.192±0.000 | 0.045±0.002 |
+| alarm AUC | 1.833±0.008 | 1.816±0.008 | 1.626±0.029 |
+| echo after storm | 0.067±0.000 | 0.173±0.000 | 0.074±0.001 |
+| max firing fraction | 0.216±0.007 | 0.263±0.002 | 0.200±0.005 |
+
+**Finding: topology matters — but not the way we guessed.** The real circuit
+responds *differently* from rewired wiring with tiny variance, yet the rewired
+graphs are LOUDER: they echo more, spill more across channels, habituate more.
+The measured connectome is **selective, not powerful**: a feeding circuit
+doesn't amplify arbitrary injected signals, while random pairing manufactures
+parasitic feedback loops that boost everything. This is the v0.2 headline:
+
+> Real wiring ≠ generic compute. It constrains propagation to its own paths.
+> A random connectome is a better reservoir — and a worse brain.
+
+Consistent with the community's honest negatives (FlyDoom's motion selectivity,
+ENSOphilia's forecast null): measured wiring buys *specificity*, not horsepower.
+
+Run: `python ablation_v02.py` → `results/ablation_v02.png`
+
+### v0.1 — grouped rate cores (superseded, kept for the record)
+
+Same scandal storyline, 120 citizens, 3 conditions:
 | metric | intact real wiring | shuffled wiring | no-core (noise) |
 |---|---|---|---|
 | peak outrage | 0.991 | 0.991 | 0.043 |
@@ -78,8 +109,9 @@ Run it yourself: `python ablation.py` → `results/ablation.png`
 ```bash
 uv venv .venv --python 3.12 && uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python tests/test_core.py   # sanity: threat→avoid, habituation, novelty
-.venv/bin/python demo.py              # office-cat scandal cascade
-.venv/bin/python ablation.py          # real vs shuffled vs no-core
+.venv/bin/python demo.py              # office-cat scandal cascade (v0.1 group cores)
+.venv/bin/python ablation_v02.py      # v0.2 per-neuron: real vs rewired vs no-core
+.venv/bin/python ablation.py          # v0.1 grouped: real vs shuffled vs no-core
 .venv/bin/python -m mirofly.mirofish_adapter   # MiroFish integration API demo
 ```
 
@@ -101,9 +133,13 @@ which directly attacks MiroFish's stated high-consumption problem.
 
 ## Roadmap
 
-- [ ] v0.2: per-neuron spiking microcircuits (drop group aggregation) → re-run ablation
-- [ ] v0.2: real bitter GRN IDs from FlyWire annotations as the threat channel
+- [x] v0.2: per-neuron spiking microcircuits + pre-registered gain protocol
+  → **done; finding: real topology is selective, not amplifying (see above)**
+- [ ] v0.3: real bitter GRN IDs from FlyWire annotations as the threat channel
+  (expected to let the real circuit discriminate sweet/bitter properly —
+  the current stand-in injects threat into taste-inhibited neurons)
 - [ ] v0.3: mushroom-body dopamine rule → citizen preferences *learn* over the run
+- [ ] v0.4: world-level ablation (follower-graph feedback on top of v0.2 cores)
 - [ ] v0.4: wire into a real MiroFish fork; ablate against a real opinion dataset
 - [ ] v0.5: calibration report — publish whatever it shows
 

@@ -18,7 +18,104 @@ from __future__ import annotations
 import numpy as np
 
 
+class SpikeCore:
+    """v0.2: batched per-neuron dynamics on the real circuit (no aggregation).
+
+    One batch element = one citizen with its own adaptation + memory state.
+    Recurrent propagation runs through the REAL per-neuron signed synapses;
+    citizens share wiring, differ in drive gains, noise, and history.
+    Batched sparse matvec: sort edges by target once, then
+      current[:, nz_targets] = reduceat(spikes[:, pre] * w, starts, axis=1)
+    """
+
+    def __init__(self, circuit, n_citizens: int, seed: int = 1234,
+                 gain: float = 2.0, tau: float = 6.0, threshold: float = 1.0,
+                 refractory: int = 2, habituation_eta: float = 0.05,
+                 recovery_eta: float = 0.015, noise_sigma: float = 0.02):
+        self.circ = circuit
+        self.B = n_citizens
+        self.N = circuit["meta"]["n_neurons"]
+        self.gain = gain
+        self.decay = float(np.exp(-1.0 / tau))
+        self.thr = threshold
+        self.refr = refractory
+        self.habituation_eta = habituation_eta
+        self.recovery_eta = recovery_eta
+        rng = np.random.default_rng(seed)
+        self.drive_gain_p = rng.uniform(0.7, 1.5, size=(self.B, 1)).astype(np.float32)
+        self.noise_sigma = rng.uniform(0.005, 0.02, size=(self.B, 1)).astype(np.float32)
+        self.rng = np.random.default_rng(seed + 1)
+
+        # per-target normalized signed weights (input conductance normalization)
+        w = circuit["w"] / np.maximum(circuit["in_scale"][circuit["post"]], 1e-9)
+        self.w = (w * self.gain).astype(np.float32)
+        self.pre = circuit["pre"]
+        self.starts = circuit["starts"]
+        self.nz_targets = circuit["nz_targets"]
+
+        self.seeds = circuit["seed_local"]
+        self.threat_pop = np.asarray(circuit["threat_idx"], dtype=int)
+        self.approach_pop = np.asarray(circuit["approach_idx"], dtype=int)
+
+        # state
+        self.v = np.zeros((self.B, self.N), dtype=np.float32)
+        self.sp = np.zeros((self.B, self.N), dtype=np.float32)
+        self.ref = np.zeros((self.B, self.N), dtype=np.int16)
+        self.rate = np.zeros((self.B, self.N), dtype=np.float32)
+        self.adapt = np.ones((self.B, 2), dtype=np.float32)  # [approach, threat]
+        self.drive_ema = np.zeros((self.B, 1), dtype=np.float32)
+        self._alarm = None
+
+    def tick(self, drives: np.ndarray) -> dict:
+        d = np.asarray(drives, dtype=np.float32).reshape(self.B, 1)
+        pos = np.clip(d, 0.0, None)
+        neg = np.clip(-d, 0.0, None)
+
+        # recurrent input through REAL synapses (last tick's spikes)
+        vals = self.sp[:, self.pre] * self.w[None, :]
+        I = np.zeros((self.B, self.N), dtype=np.float32)
+        I[:, self.nz_targets] = np.add.reduceat(vals, self.starts, axis=1)
+
+        # channel drives gated by their own depression (habituation)
+        I[:, self.seeds] += pos * self.adapt[:, 0:1] * self.drive_gain_p
+        I[:, self.threat_pop] += neg * self.adapt[:, 1:2] * self.drive_gain_p
+        I += self.rng.normal(0.0, 1.0, size=(self.B, self.N)).astype(np.float32) \
+            * self.noise_sigma
+
+        # LIF step
+        self.v = self.v * self.decay + I
+        sp = (self.v > self.thr) & (self.ref == 0)
+        self.v[sp] = 0.0
+        self.ref = np.maximum(self.ref - 1, 0)
+        self.ref[sp] = np.int16(self.refr)
+        self.sp = sp.astype(np.float32)
+        self.rate = 0.85 * self.rate + 0.15 * self.sp
+
+        # channel depression / recovery
+        self.adapt[:, 0] = np.clip(
+            self.adapt[:, 0] - self.habituation_eta * pos[:, 0]
+            + self.recovery_eta * (pos[:, 0] < 0.05), 0.15, 1.0)
+        self.adapt[:, 1] = np.clip(
+            self.adapt[:, 1] - self.habituation_eta * neg[:, 0]
+            + self.recovery_eta * (neg[:, 0] < 0.05), 0.15, 1.0)
+
+        # dopamine = positive surprise on total drive energy (RPE proxy)
+        energy = np.abs(d[:, 0]).astype(np.float32)
+        novelty = np.clip(energy - self.drive_ema[:, 0], 0.0, None)
+        self.drive_ema[:, 0] = 0.85 * self.drive_ema[:, 0] + 0.15 * energy
+        return {"novelty": novelty, "energy": energy}
+
+    def readouts(self, approach_g, avoid_g) -> dict:
+        approach = self.rate[:, self.approach_pop].mean(axis=1)
+        avoid = self.rate[:, self.threat_pop].mean(axis=1)
+        a = np.clip(avoid - approach * 0.5, 0.0, None)
+        self._alarm = a if self._alarm is None else 0.7 * self._alarm + 0.3 * a
+        return {"approach": approach, "avoid": avoid, "alarm": self._alarm.copy()}
+
+
 class AffectCore:
+    """v0.1: batched group-level rate core (kept for comparison; see README)."""
+
     def __init__(self, W, drive_g, n_citizens: int, seed: int = 1234,
                  gain: float = 1.0, drive_gain: float = 2.5,
                  habituation_eta: float = 0.045, recovery_eta: float = 0.01,
