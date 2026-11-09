@@ -47,7 +47,7 @@ def run(n_citizens=120, ticks=26, W=None, core=None, seed=99):
             world.inject_event(t, txt, source="news")
             print(f"  [t{t:02d}] NEWS: {txt}  (drive={encode(txt):+.2f})")
         ro = world.step(t)
-        posts = world.maybe_post(t, ro, ro["drives"], [])
+        posts = world.maybe_post(t, ro)
         mean_alarm = float(np.mean(ro["alarm"]))
         mean_avoid = float(np.mean(ro["avoid"]))
         mean_app = float(np.mean(ro["approach"]))

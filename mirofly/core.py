@@ -124,8 +124,22 @@ class SpikeCore:
         return {"novelty": novelty, "energy": energy}
 
     def readouts(self, approach_g=None, avoid_g=None) -> dict:
-        approach = self.rate[:, self.approach_pop].mean(axis=1)
-        avoid = self.rate[:, self.threat_pop].mean(axis=1)
+        """Baseline-relative population rates (ΔF/F style).
+
+        The real circuit reverberates: after a storm, absolute rates stay
+        elevated for many ticks (near-marginal spectral radius). Learning
+        must score DEVIATIONS from each citizen's own slow baseline,
+        otherwise every post-storm event reads as bad. Baseline tau ~ 20.
+        """
+        a_now = self.rate[:, self.approach_pop].mean(axis=1)
+        b_now = self.rate[:, self.threat_pop].mean(axis=1)
+        if not hasattr(self, "_base_a"):
+            self._base_a = a_now.copy()
+            self._base_b = b_now.copy()
+        self._base_a = 0.95 * self._base_a + 0.05 * a_now
+        self._base_b = 0.95 * self._base_b + 0.05 * b_now
+        approach = a_now - self._base_a
+        avoid = b_now - self._base_b
         a = np.clip(avoid - approach * 0.5, 0.0, None)
         self._alarm = a if self._alarm is None else 0.7 * self._alarm + 0.3 * a
         return {"approach": approach, "avoid": avoid, "alarm": self._alarm.copy()}

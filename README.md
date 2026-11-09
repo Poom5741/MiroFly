@@ -54,7 +54,31 @@ their own adaptation/memory state.
 
 ## Ablation results (the honesty engine)
 
-### v0.3 — the discrimination test: real bitter GRNs (current)
+### v0.3 — the discrimination test: real bitter GRNs
+
+The threat channel is no longer a stand-in: **39 real bitter GRNs** (LB1a/LB1b,
+FlyWire community annotations of Engert et al. 2022) drive the circuit's
+second channel, alongside the 21 real sugar GRNs — 1,313 neurons, 108k signed
+synapses, both channels real end to end.
+
+Same pre-registered protocol (gain frozen at 128 from intact-only sweep,
+5 seeds/condition, configuration-model rewired control). Numbers below are
+the **v0.4 re-run under baseline-relative readouts** (ΔF/F style — see v0.4;
+the conclusion held and got cleaner):
+
+| metric (mean±std) | intact real wiring | rewired control | no-core (noise) |
+|---|---|---|---|
+| sweet response (approach pop) | 0.048±0.002 | 0.068±0.001 | 0.044±0.002 |
+| sweet cross (threat pop) | 0.024±0.000 | 0.064±0.001 | 0.057±0.001 |
+| bitter response (threat pop) | 0.082±0.001 | 0.115±0.000 | 0.053±0.002 |
+| **D_sweet** (sweet − cross) | **+0.024±0.001** | +0.004±0.000 | **−0.013±0.002** |
+| **D_bitter** (bitter − cross) | **+0.006±0.000** | −0.011±0.001 | +0.014±0.002 |
+| **D_total** | **+0.029±0.001** | **−0.008±0.000** | +0.000±0.001 |
+
+**Finding: the real circuit discriminates sweet from bitter on BOTH channels;
+rewired wiring discriminates on neither.** Intact D_total = +0.029 vs rewired
+−0.008, variance ~0.001. Random connectomes don't just lack specificity —
+they actively cross-contaminate channels (rewired sweet_cross ≈ sweet_resp).
 
 The threat channel is no longer a stand-in: **39 real bitter GRNs** (LB1a/LB1b,
 FlyWire community annotations of Engert et al. 2022) drive the circuit's
@@ -92,7 +116,38 @@ regime, short timeline, 2-hop neighborhoods. Magnitudes may move; the sign of
 D_total is the claim. Run: `python discrimination_v03.py` →
 `results/discrimination_v03.png`
 
-### v0.2 — per-neuron spiking cores (superseded for threat channel, kept)
+### v0.2 — per-neuron spiking cores
+
+First per-neuron protocol (absolute readouts, gain frozen at 64):
+intact vs rewired differed far beyond noise, but rewired graphs were LOUDER
+(more echo, more spillover): **"real wiring is selective, not powerful."**
+v0.3's discrimination result is the constructive counterpart — the real
+circuit is selective *for its channels*.
+
+### v0.4 — dopamine-gated learning (MB-inspired)
+
+Citizens now LEARN: a PreferenceLayer implements the mushroom-body rule
+(delta-rule valence updates, gated by the core's dopamine novelty signal —
+expected events do not rewrite valence). Two real citizen types in the SAME
+world: 90 learners vs 30 naive (lr = 0), same real wiring, same events.
+
+| result | value | verdict |
+|---|---|---|
+| learned aversion, scandal topic | valence **−0.181±0.034** | ✅ strong, correct sign |
+| mundane topic (gated) | −0.043 | ✅ near zero — gate gives selectivity |
+| mundane topic (ungated) | −0.093 (sum\|val\| 8.4 vs 4.5) | ✅ ungated drifts 2× |
+| learned distrust of alarm-spreader | followers' trust **−0.108** | ✅ credibility dynamics |
+| learned discounting (cry-wolf) at revival | learners +0.079 vs naive +0.077 | ⚠️ barely visible — drive modulation is sub-threshold at frozen gain |
+| banana valence | −0.089 (expected +) | ⚠️ honest wart: storm-tail contamination at short ISI |
+
+Mechanism notes: lag-corrected scoring (events scored by the NEXT tick's
+outcome — same-tick scoring teaches pre-response state), and baseline-relative
+readouts (the real circuit reverberates after storms; ΔF/F-style scoring is
+required or every post-storm event reads as bad).
+
+Run: `python demo_learning.py` → `results/learning_v04.png`
+
+### v0.1 — grouped rate cores (superseded, kept for the record)
 
 Per-neuron LIF dynamics on 2,400 real neurons / 187k signed synapses.
 Pre-registered protocol: gain swept on intact only (frozen at 64), then 5
@@ -132,7 +187,7 @@ Same scandal storyline, 120 citizens, 3 conditions:
 | total posts | 1200 | 1230 | 810 |
 | mean alarm | 0.399 | 0.397 | 0.098 |
 
-**Two honest findings:**
+**Two honest findings (world-level, v0.1 cores):**
 1. The affect machinery *does* matter: removing the core collapses posting
    (−33%) and alarm (−75%). Citizens with nervous systems panic; noise doesn't.
 2. **Intact ≈ shuffled at v0.1.** The real topology does not yet beat a
@@ -175,8 +230,10 @@ which directly attacks MiroFish's stated high-consumption problem.
   → **done; real topology is selective, not amplifying (see above)**
 - [x] v0.3: real bitter GRNs as the threat channel
   → **done; intact discriminates sweet/bitter, rewired cannot (see above)**
-- [ ] v0.4: mushroom-body dopamine rule → citizen preferences *learn* over the run
-- [ ] v0.4: world-level ablation (follower-graph feedback on top of v0.2/0.3 cores)
+- [x] v0.4: mushroom-body dopamine rule (MB-inspired PreferenceLayer)
+  → **done; learned aversion −0.18, gating = selectivity, trust dynamics;
+     cry-wolf contrast sub-threshold (honest wart, see v0.4 table)**
+- [ ] v0.4b: world-level ablation (follower-graph cascade on v0.3 cores)
 - [ ] v0.5: wire into a real MiroFish fork; ablate against a real opinion dataset
 - [ ] v0.6: calibration report — publish whatever it shows
 
