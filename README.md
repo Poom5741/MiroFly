@@ -1,0 +1,119 @@
+# MiroFly 🪰🧠
+
+**Give every AI agent in an opinion-dynamics world (like [MiroFish](https://github.com/666ghj/MiroFish)) a real nervous system as its affect core — built from the actual FlyWire connectome of an adult fruit fly.**
+
+MiroFly agents don't roleplay emotions with prompts. Their internal states
+(approach, avoidance, alarm, novelty, outrage persistence) are computed by
+population dynamics running on **2,400 real neurons and 187k real signed
+synapses** extracted from FlyWire v783, personalized per citizen, persistent
+across ticks.
+
+> ⚠️ **Honesty first** — read before quoting this project:
+> The fly brain does NOT understand news. The LLM (in production) does all
+> language work. The fly wiring contributes *mechanistic affect dynamics*
+> (habituation, alarm cascades, novelty surprise) — not comprehension, and
+> (not yet) proven predictive power. See [Ablation](#-ablation-results) below.
+
+## Architecture
+
+```
+           MiroFish world (LLM agents, memory, social graph)
+                              │ event/post text
+                              ▼
+                   ┌─────────────────────┐
+   text ──encode──▶│  drive vector       │   sweet → real taste-input group
+                   │  (approach/threat)  │   threat → real taste-inhibited groups
+                   └─────────┬───────────┘
+                             ▼
+     ┌──────────────────────────────────────────────┐
+     │  AffectCore (one per citizen, batched)       │
+     │  r' = tanh( (r·adapt)@Wᵀ + drive + noise )   │
+     │  · W = REAL FlyWire signed group wiring      │
+     │  · adapt = synaptic depression (habituation) │
+     │  · dopamine = novelty surprise (RPE proxy)   │
+     └──────────────────┬───────────────────────────┘
+                        ▼ readouts: approach / avoid / alarm / novelty
+              prompt conditioning + posting bias
+```
+
+The trick that makes it fit on a laptop: the fly-brain repo's PyTorch runner
+batches independent *trials* — **we reinterpret the batch dimension as
+citizens.** 120 citizens share the real wiring, differing in gains, noise, and
+their own adaptation/memory state.
+
+## What's real (and what isn't)
+
+| Component | Status |
+|---|---|
+| Neuron neighborhood | ✅ REAL — 2-hop downstream of the actual sugar GRNs (IDs from [eonsystemspbc/fly-brain](https://github.com/eonsystemspbc/fly-brain)) |
+| Synapse weights + signs | ✅ REAL — FlyWire v783, Eckstein et al. 2024 neurotransmitter-inferred signs |
+| Group partition | ⚠️ v0.1 approximation — k-means into 16 groups (upgrade: per-neuron spiking) |
+| Threat channel | ⚠️ v0.1 stand-in — the real taste-*inhibited* populations (roadmap: real bitter GRN IDs) |
+| Spectral normalization | ⚙️ standard rate-model practice (radius 0.9), sign structure preserved |
+| Comprehension of events | ❌ none — encoder/LLM maps text to drives; the brain only computes dynamics |
+
+## Ablation results (the honesty engine)
+
+Same scandal storyline, 120 citizens, 3 conditions:
+
+| metric | intact real wiring | shuffled wiring | no-core (noise) |
+|---|---|---|---|
+| peak outrage | 0.991 | 0.991 | 0.043 |
+| outrage half-life (ticks) | 9 | 7 | 2 |
+| total posts | 1200 | 1230 | 810 |
+| mean alarm | 0.399 | 0.397 | 0.098 |
+
+**Two honest findings:**
+1. The affect machinery *does* matter: removing the core collapses posting
+   (−33%) and alarm (−75%). Citizens with nervous systems panic; noise doesn't.
+2. **Intact ≈ shuffled at v0.1.** The real topology does not yet beat a
+   rewired control through 16-group aggregation. That is the headline until
+   per-neuron spiking microcircuits change it. If it never changes, we
+   publish that too (see ENSOphilia's precedent of honest negatives).
+
+Run it yourself: `python ablation.py` → `results/ablation.png`
+
+## Quick start
+
+```bash
+uv venv .venv --python 3.12 && uv pip install --python .venv/bin/python -r requirements.txt
+.venv/bin/python tests/test_core.py   # sanity: threat→avoid, habituation, novelty
+.venv/bin/python demo.py              # office-cat scandal cascade
+.venv/bin/python ablation.py          # real vs shuffled vs no-core
+.venv/bin/python -m mirofly.mirofish_adapter   # MiroFish integration API demo
+```
+
+Requires `~/fly-brain` (clone of eonsystemspbc/fly-brain) for the data files.
+
+## MiroFish integration plan
+
+See `mirofly/mirofish_adapter.py` — the contract is:
+
+```python
+mf = MiroFly.from_fly_brain("~/fly-brain", n_agents=N)
+state = mf.affect(agent_id, event_text)       # affective tick (no tokens)
+prompt += MiroFly.state_clause(state)         # "you feel alarm rising; this feels new"
+mf.learn(agent_id, text, reward=feedback)     # dopamine-tagged memory
+```
+
+Affect ticks cost **zero LLM tokens** — emotions between posts are free,
+which directly attacks MiroFish's stated high-consumption problem.
+
+## Roadmap
+
+- [ ] v0.2: per-neuron spiking microcircuits (drop group aggregation) → re-run ablation
+- [ ] v0.2: real bitter GRN IDs from FlyWire annotations as the threat channel
+- [ ] v0.3: mushroom-body dopamine rule → citizen preferences *learn* over the run
+- [ ] v0.4: wire into a real MiroFish fork; ablate against a real opinion dataset
+- [ ] v0.5: calibration report — publish whatever it shows
+
+## Credits & licensing
+
+- Connectome data: FlyWire v783 (Dorkenwald et al. 2024), signs from
+  Eckstein et al. 2024 — obtained via [eonsystemspbc/fly-brain](https://github.com/eonsystemspbc/fly-brain)'s
+  bundled parquet (that repo is GPL-2.0-or-later; MiroFly **reads its data
+  files but imports none of its code**).
+- Model inspiration: Shiu et al., *Nature* 2024 — the leaky integrate-and-fire
+  whole-fly-brain model.
+- MiroFish: 666ghj/MiroFish — the swarm-prediction engine this plugs into.
+- MiroFly code: MIT. Data retains its upstream terms.
