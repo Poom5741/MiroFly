@@ -54,7 +54,45 @@ their own adaptation/memory state.
 
 ## Ablation results (the honesty engine)
 
-### v0.2 — per-neuron spiking cores (current)
+### v0.3 — the discrimination test: real bitter GRNs (current)
+
+The threat channel is no longer a stand-in: **39 real bitter GRNs** (LB1a/LB1b,
+FlyWire community annotations of Engert et al. 2022) drive the circuit's
+second channel, alongside the 21 real sugar GRNs — 1,313 neurons, 108k signed
+synapses, both channels real end to end.
+
+Same pre-registered protocol (gain frozen at 128 from intact-only sweep,
+5 seeds/condition, configuration-model rewired control):
+
+| metric (mean±std) | intact real wiring | rewired control | no-core (noise) |
+|---|---|---|---|
+| sweet response (approach pop) | 0.086±0.002 | 0.122±0.001 | 0.072±0.003 |
+| sweet cross (threat pop) | 0.057±0.001 | 0.113±0.001 | 0.092±0.002 |
+| bitter response (threat pop) | 0.128±0.001 | 0.166±0.000 | 0.098±0.003 |
+| **D_sweet** (sweet − cross) | **+0.029±0.002** | +0.009±0.000 | **−0.020±0.004** |
+| D_bitter (bitter − cross) | −0.005±0.001 | −0.019±0.001 | +0.021±0.004 |
+| **D_total** | **+0.024±0.001** | **−0.010±0.001** | +0.000±0.001 |
+
+**Finding: the real circuit discriminates sweet from bitter; rewired wiring
+cannot.** Intact D_total = +0.024 vs rewired −0.010, variance ~0.001 — the gap
+is an order of magnitude above the noise. Sharper still: rewired wiring is
+*worse than no brain at all* on the bitter channel (D_bitter −0.019 vs
+no-core +0.021). Random connectomes don't just lack specificity — they
+actively confuse channels.
+
+Combined with v0.2, the story is now:
+
+> v0.2 — real wiring is selective, not loud (rewired echoes more).
+> v0.3 — what real wiring is selective for is *telling sweet from bitter*,
+> which rewired wiring cannot do. Specificity is the measured topology's
+> contribution — not gain, not capacity.
+
+Honest caveats: effect sizes are small (hundredths in rate units), one gain
+regime, short timeline, 2-hop neighborhoods. Magnitudes may move; the sign of
+D_total is the claim. Run: `python discrimination_v03.py` →
+`results/discrimination_v03.png`
+
+### v0.2 — per-neuron spiking cores (superseded for threat channel, kept)
 
 Per-neuron LIF dynamics on 2,400 real neurons / 187k signed synapses.
 Pre-registered protocol: gain swept on intact only (frozen at 64), then 5
@@ -134,14 +172,13 @@ which directly attacks MiroFish's stated high-consumption problem.
 ## Roadmap
 
 - [x] v0.2: per-neuron spiking microcircuits + pre-registered gain protocol
-  → **done; finding: real topology is selective, not amplifying (see above)**
-- [ ] v0.3: real bitter GRN IDs from FlyWire annotations as the threat channel
-  (expected to let the real circuit discriminate sweet/bitter properly —
-  the current stand-in injects threat into taste-inhibited neurons)
-- [ ] v0.3: mushroom-body dopamine rule → citizen preferences *learn* over the run
-- [ ] v0.4: world-level ablation (follower-graph feedback on top of v0.2 cores)
-- [ ] v0.4: wire into a real MiroFish fork; ablate against a real opinion dataset
-- [ ] v0.5: calibration report — publish whatever it shows
+  → **done; real topology is selective, not amplifying (see above)**
+- [x] v0.3: real bitter GRNs as the threat channel
+  → **done; intact discriminates sweet/bitter, rewired cannot (see above)**
+- [ ] v0.4: mushroom-body dopamine rule → citizen preferences *learn* over the run
+- [ ] v0.4: world-level ablation (follower-graph feedback on top of v0.2/0.3 cores)
+- [ ] v0.5: wire into a real MiroFish fork; ablate against a real opinion dataset
+- [ ] v0.6: calibration report — publish whatever it shows
 
 ## Credits & licensing
 
@@ -149,6 +186,12 @@ which directly attacks MiroFish's stated high-consumption problem.
   Eckstein et al. 2024 — obtained via [eonsystemspbc/fly-brain](https://github.com/eonsystemspbc/fly-brain)'s
   bundled parquet (that repo is GPL-2.0-or-later; MiroFly **reads its data
   files but imports none of its code**).
+- Bitter GRN IDs (v0.3): FlyWire community cell-type annotations of labellar
+  bitter GRNs (Engert et al. 2022, eLife 78110), compiled in
+  [sydneywalker1/flywire499](https://github.com/sydneywalker1/flywire499)
+  (`bitter_GRNs.csv`; bundled in `data/` with attribution — facts and IDs,
+  upstream repo has no license claim). Cross-validated: 39/39 IDs present in
+  v783; zero overlap with sugar set; 19/21 fly-brain sugar IDs reproduced.
 - Model inspiration: Shiu et al., *Nature* 2024 — the leaky integrate-and-fire
   whole-fly-brain model.
 - MiroFish: 666ghj/MiroFish — the swarm-prediction engine this plugs into.

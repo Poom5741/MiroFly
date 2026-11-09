@@ -31,7 +31,8 @@ class SpikeCore:
     def __init__(self, circuit, n_citizens: int, seed: int = 1234,
                  gain: float = 2.0, tau: float = 6.0, threshold: float = 1.0,
                  refractory: int = 2, habituation_eta: float = 0.05,
-                 recovery_eta: float = 0.015, noise_sigma: float = 0.02):
+                 recovery_eta: float = 0.015, noise_sigma: float = 0.02,
+                 channels: dict | None = None):
         self.circ = circuit
         self.B = n_citizens
         self.N = circuit["meta"]["n_neurons"]
@@ -46,6 +47,27 @@ class SpikeCore:
         self.noise_sigma = rng.uniform(0.005, 0.02, size=(self.B, 1)).astype(np.float32)
         self.rng = np.random.default_rng(seed + 1)
 
+        # channel definition: v0.3 dual-core passes explicit channels;
+        # fall back to whichever circuit layout we were handed
+        if channels is not None:
+            ch = channels
+        elif "seed_local" in circuit:
+            ch = {"sweet_seeds": circuit["seed_local"],
+                  "bitter_seeds": np.asarray(circuit["threat_idx"], dtype=int),
+                  "approach_pop": circuit["approach_idx"],
+                  "threat_pop": circuit["threat_idx"]}
+        elif "approach_seeds" in circuit:
+            ch = {"sweet_seeds": circuit["approach_seeds"],
+                  "bitter_seeds": circuit["threat_seeds"],
+                  "approach_pop": circuit["approach_pop"],
+                  "threat_pop": circuit["threat_pop"]}
+        else:
+            raise KeyError("circuit has neither v0.2 nor v0.3 channel keys")
+        self.sweet_seeds = np.asarray(ch["sweet_seeds"], dtype=int)
+        self.bitter_seeds = np.asarray(ch["bitter_seeds"], dtype=int)
+        self.approach_pop = np.asarray(ch["approach_pop"], dtype=int)
+        self.threat_pop = np.asarray(ch["threat_pop"], dtype=int)
+
         # per-target normalized signed weights (input conductance normalization)
         w = circuit["w"] / np.maximum(circuit["in_scale"][circuit["post"]], 1e-9)
         self.w = (w * self.gain).astype(np.float32)
@@ -53,16 +75,12 @@ class SpikeCore:
         self.starts = circuit["starts"]
         self.nz_targets = circuit["nz_targets"]
 
-        self.seeds = circuit["seed_local"]
-        self.threat_pop = np.asarray(circuit["threat_idx"], dtype=int)
-        self.approach_pop = np.asarray(circuit["approach_idx"], dtype=int)
-
         # state
         self.v = np.zeros((self.B, self.N), dtype=np.float32)
         self.sp = np.zeros((self.B, self.N), dtype=np.float32)
         self.ref = np.zeros((self.B, self.N), dtype=np.int16)
         self.rate = np.zeros((self.B, self.N), dtype=np.float32)
-        self.adapt = np.ones((self.B, 2), dtype=np.float32)  # [approach, threat]
+        self.adapt = np.ones((self.B, 2), dtype=np.float32)  # [sweet, bitter]
         self.drive_ema = np.zeros((self.B, 1), dtype=np.float32)
         self._alarm = None
 
@@ -77,8 +95,8 @@ class SpikeCore:
         I[:, self.nz_targets] = np.add.reduceat(vals, self.starts, axis=1)
 
         # channel drives gated by their own depression (habituation)
-        I[:, self.seeds] += pos * self.adapt[:, 0:1] * self.drive_gain_p
-        I[:, self.threat_pop] += neg * self.adapt[:, 1:2] * self.drive_gain_p
+        I[:, self.sweet_seeds] += pos * self.adapt[:, 0:1] * self.drive_gain_p
+        I[:, self.bitter_seeds] += neg * self.adapt[:, 1:2] * self.drive_gain_p
         I += self.rng.normal(0.0, 1.0, size=(self.B, self.N)).astype(np.float32) \
             * self.noise_sigma
 
@@ -105,7 +123,7 @@ class SpikeCore:
         self.drive_ema[:, 0] = 0.85 * self.drive_ema[:, 0] + 0.15 * energy
         return {"novelty": novelty, "energy": energy}
 
-    def readouts(self, approach_g, avoid_g) -> dict:
+    def readouts(self, approach_g=None, avoid_g=None) -> dict:
         approach = self.rate[:, self.approach_pop].mean(axis=1)
         avoid = self.rate[:, self.threat_pop].mean(axis=1)
         a = np.clip(avoid - approach * 0.5, 0.0, None)

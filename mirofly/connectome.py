@@ -127,6 +127,92 @@ def build_neuron_core(fly_brain_dir: str | Path = Path.home() / "fly-brain",
     }
 
 
+def build_dual_core(fly_brain_dir: str | Path = Path.home() / "fly-brain",
+                    max_neurons: int = 3200, seed: int = 7, readout_k: int = 30):
+    """
+    v0.3: TWO real sensory channels — sugar (approach) AND bitter (threat).
+
+    Bitter GRN root IDs come from FlyWire community annotations (Engert et
+    al. 2022 labels), bundled in data/bitter_grns_flywire499.csv (compiled
+    by sydneywalker1/flywire499; validated: all 39 IDs present in v783,
+    zero overlap with sugar set, 19/21 repo sugar IDs reproduced).
+
+    Drive: sweet energy -> real sugar GRNs; bitter energy -> real bitter GRNs.
+    Readouts: top neurons really excited by each seed set.
+    """
+    ids = load_neuron_ids(fly_brain_dir)
+    id_to_idx = {nid: i for i, nid in enumerate(ids)}
+    sugar_ids = set(SUGAR_GRN_IDS)
+    bdf = pd.read_csv(Path(__file__).resolve().parent.parent / "data"
+                      / "bitter_grns_flywire499.csv")
+    bitter_ids = set(bdf.root_id.astype("int64")) & set(ids.tolist())
+    sugar_seed_idx = np.array([id_to_idx[i] for i in sugar_ids], dtype=int)
+    bitter_seed_idx = np.array([id_to_idx[i] for i in bitter_ids], dtype=int)
+
+    pre, post, signed = load_connectivity(fly_brain_dir)
+
+    def two_hop(seeds):
+        agg = pd.Series(np.abs(signed[np.isin(pre, seeds)])).groupby(
+            post[np.isin(pre, seeds)]).sum().sort_values(ascending=False)
+        h1 = agg.index[:2000]
+        agg2 = pd.Series(np.abs(signed[np.isin(pre, h1)])).groupby(
+            post[np.isin(pre, h1)]).sum().sort_values(ascending=False)
+        h2 = agg2.index[: 800]
+        return np.concatenate([h1.to_numpy(), h2.to_numpy()])
+
+    extra = np.concatenate([two_hop(sugar_seed_idx), two_hop(bitter_seed_idx)])
+    members = np.unique(np.concatenate([sugar_seed_idx, bitter_seed_idx, extra]))
+    members = members[:max_neurons]
+    member_set = np.zeros(len(ids), dtype=bool)
+    member_set[members] = True
+
+    sm = member_set[pre] & member_set[post]
+    pre_s, post_s, w_s = pre[sm], post[sm], signed[sm]
+    local = -np.ones(len(ids), dtype=int)
+    local[members] = np.arange(len(members))
+    pre_l, post_l = local[pre_s], local[post_s]
+
+    n = len(members)
+    all_seeds = np.concatenate([sugar_seed_idx, bitter_seed_idx])
+    seed_local_all = local[all_seeds]
+    from_sugar = np.zeros(n); from_bitter = np.zeros(n)
+    sugar_l = local[sugar_seed_idx]; bitter_l = local[bitter_seed_idx]
+    msug = np.isin(pre_l, sugar_l)
+    np.add.at(from_sugar, post_l[msug], w_s[msug])
+    mbit = np.isin(pre_l, bitter_l)
+    np.add.at(from_bitter, post_l[mbit], w_s[mbit])
+    exclude = set(seed_local_all.tolist())
+    approach_pop = [int(i) for i in np.argsort(from_sugar)[-readout_k:]
+                    if int(i) not in exclude]
+    threat_pop = [int(i) for i in np.argsort(from_bitter)[-readout_k:]
+                  if int(i) not in exclude]
+
+    e = np.argsort(post_l, kind="stable")
+    pre_sorted, post_sorted, w_sorted = pre_l[e], post_l[e], w_s[e]
+    nz_targets, starts = np.unique(post_sorted, return_index=True)
+    in_scale = np.zeros(n)
+    np.add.at(in_scale, post_l, np.abs(w_s))
+
+    meta = {
+        "n_neurons": int(n),
+        "n_synapses_in_core": int(sm.sum()),
+        "n_sugar_seeds": int(len(sugar_seed_idx)),
+        "n_bitter_seeds": int(len(bitter_seed_idx)),
+        "n_approach": len(approach_pop),
+        "n_threat": len(threat_pop),
+        "seed_source": "sugar: fly-brain repo; bitter: FlyWire community "
+                       "annotations (Engert et al. 2022) via flywire499",
+        "data": "FlyWire v783 signed connectivity (Eckstein et al. 2024 signs)",
+    }
+    return {
+        "pre": pre_sorted, "post": post_sorted, "w": w_sorted,
+        "nz_targets": nz_targets, "starts": starts, "in_scale": in_scale,
+        "approach_seeds": sugar_l, "threat_seeds": bitter_l,
+        "approach_pop": approach_pop, "threat_pop": threat_pop,
+        "meta": meta,
+    }
+
+
 def load_neuron_ids(fly_brain_dir: str | Path) -> np.ndarray:
     """Row i of the completeness CSV is neuron index i in the parquet."""
     c = pd.read_csv(Path(fly_brain_dir) / "data" / "2025_Completeness_783.csv",
